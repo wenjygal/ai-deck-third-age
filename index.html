@@ -1,0 +1,465 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI בשפה פשוטה</title>
+<!-- Heebo loads when online; offline the deck falls back to Arial -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;700;800&display=swap">
+<style>
+  /* 1u = 1% of the slide width on a 16:9 screen; text never drops below ~36px at 1080p */
+  :root {
+    --u: min(1vw, 1.7778vh);
+    --bg: #FBF7EE;
+    --ink: #14213D;
+    --ink-soft: #2B3A55;
+    --accent: #B93A0B;
+    --bubble-user: #DCE8F7;
+    --bubble-ai: #FFFFFF;
+    --green: #1B7A3D;
+    --orange: #B45309;
+    --red: #B3261E;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; background: var(--bg); color: var(--ink); overflow: hidden; }
+  body { font-family: Heebo, Arial, "Segoe UI", sans-serif; font-size: calc(var(--u) * 2.4); }
+
+  .slide {
+    position: absolute; inset: 0; display: none;
+    flex-direction: column; justify-content: center; align-items: center;
+    padding: calc(var(--u) * 4) calc(var(--u) * 8);
+    text-align: center; gap: calc(var(--u) * 2.2);
+  }
+  .slide.active { display: flex; }
+
+  .big  { font-size: calc(var(--u) * 6.4); font-weight: 800; line-height: 1.22; }
+  .mid  { font-size: calc(var(--u) * 4.2); font-weight: 700; line-height: 1.3; }
+  .sub  { font-size: calc(var(--u) * 3.0); font-weight: 400; line-height: 1.4; color: var(--ink-soft); }
+  b, .hl { color: var(--accent); font-weight: 800; }
+  .rule { border-top: calc(var(--u) * .35) solid var(--accent); width: calc(var(--u) * 12); margin-top: calc(var(--u) * 1); }
+  .blank { display: inline-block; width: calc(var(--u) * 14); border-bottom: calc(var(--u) * .6) solid var(--ink); }
+
+  /* illustration icons: flat line drawings, one ink colour + one accent */
+  .ico { width: calc(var(--u) * 14); height: calc(var(--u) * 14); color: var(--ink); flex: none;
+         fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+  .ico.accent { color: var(--accent); }
+  .ico.g { color: var(--green); } .ico.r { color: var(--red); } .ico.o { color: var(--orange); }
+  .ico-row { display: flex; gap: calc(var(--u) * 5); align-items: center; justify-content: center; }
+  .ico-row .ico { width: calc(var(--u) * 15); height: calc(var(--u) * 15); }
+  .ico-cap { font-size: calc(var(--u) * 2.6); font-weight: 700; color: var(--ink-soft); }
+  .ico-col { display: flex; flex-direction: column; align-items: center; gap: calc(var(--u) * 1); }
+
+  /* chat bubbles */
+  .chat { display: flex; flex-direction: column; gap: calc(var(--u) * 1.6); width: 100%; max-width: calc(var(--u) * 78); }
+  .bubble {
+    font-size: calc(var(--u) * 3.1); line-height: 1.4; text-align: right;
+    padding: calc(var(--u) * 1.8) calc(var(--u) * 2.6); border-radius: calc(var(--u) * 2);
+    border: calc(var(--u) * .25) solid var(--ink);
+  }
+  .bubble.user { background: var(--bubble-user); align-self: flex-start; }
+  .bubble.ai   { background: var(--bubble-ai);   align-self: flex-end; }
+  .bubble small { display: block; font-size: calc(var(--u) * 2.2); color: var(--ink-soft); margin-bottom: calc(var(--u) * .4); font-weight: 700; }
+
+  /* screenshot slot: replace the text with an <img> when the real screenshot exists */
+  .shot {
+    width: 100%; max-width: calc(var(--u) * 78); min-height: calc(var(--u) * 16);
+    border: calc(var(--u) * .3) dashed var(--ink-soft); border-radius: calc(var(--u) * 1.4);
+    display: flex; align-items: center; justify-content: center;
+    font-size: calc(var(--u) * 2.4); color: var(--ink-soft); padding: calc(var(--u) * 2);
+  }
+  .shot img { max-width: 100%; max-height: calc(var(--u) * 34); }
+
+  /* traffic light rows */
+  .rows { display: flex; flex-direction: column; gap: calc(var(--u) * 2); width: 100%; max-width: calc(var(--u) * 82); }
+  .row {
+    display: flex; align-items: center; gap: calc(var(--u) * 2.4);
+    font-size: calc(var(--u) * 3.6); line-height: 1.3; text-align: right;
+    padding: calc(var(--u) * 1.6) calc(var(--u) * 2.4);
+    background: #fff; border: calc(var(--u) * .25) solid var(--ink); border-radius: calc(var(--u) * 1.4);
+  }
+  .dot { flex: none; width: calc(var(--u) * 4.6); height: calc(var(--u) * 4.6); border-radius: 50%; }
+  .dot.g { background: var(--green); } .dot.o { background: var(--orange); } .dot.r { background: var(--red); }
+  .row.g-row { border-inline-start: calc(var(--u) * 1.2) solid var(--green); }
+  .row.o-row { border-inline-start: calc(var(--u) * 1.2) solid var(--orange); }
+  .row.r-row { border-inline-start: calc(var(--u) * 1.2) solid var(--red); }
+  .row b { color: inherit; }
+
+  .pair { display: flex; gap: calc(var(--u) * 4); width: 100%; max-width: calc(var(--u) * 86); }
+  .pair .photo {
+    flex: 1; aspect-ratio: 16/10; border: calc(var(--u) * .3) dashed var(--ink-soft); border-radius: calc(var(--u) * 1.4);
+    display: flex; align-items: center; justify-content: center; font-size: calc(var(--u) * 3.4); font-weight: 800; color: var(--ink-soft);
+  }
+  .pair .photo img { width: 100%; height: 100%; object-fit: cover; border-radius: calc(var(--u) * 1.2); }
+
+  .num { position: absolute; bottom: calc(var(--u) * 1.6); left: calc(var(--u) * 2); font-size: calc(var(--u) * 1.9); color: var(--ink-soft); }
+  .hint { position: fixed; top: calc(var(--u) * 1.2); right: calc(var(--u) * 2); font-size: calc(var(--u) * 1.9); color: var(--ink-soft); opacity: 0; transition: opacity .3s; }
+  body.show-hint .hint { opacity: 1; }
+
+  @media print {
+    html, body { overflow: visible; height: auto; }
+    @page { size: 297mm 167mm; margin: 0; }
+    .slide { position: relative; display: flex; height: 167mm; width: 297mm; page-break-after: always; --u: 2.97mm; }
+    .hint { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- icon library: simple line drawings, referenced with <use> -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-chat" viewBox="0 0 24 24"><path d="M3 4h18v12H10l-5 4v-4H3z"/></symbol>
+    <symbol id="i-cake" viewBox="0 0 24 24"><path d="M3 21h18M4 21v-8h16v8M4 17c3 2 5-2 8 0s5 2 8 0M12 13V8M12 3c-1.5 1.5-1.5 3 0 3s1.500-1.500 0-3z"/></symbol>
+    <symbol id="i-next" viewBox="0 0 24 24"><path d="M21 12H5M10 6l-6 6 6 6"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="M3 12l6 6L21 5"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="M5 5l14 14M19 5L5 19"/></symbol>
+    <symbol id="i-letter" viewBox="0 0 24 24"><path d="M3 6h18v13H3zM3 6l9 7 9-7"/></symbol>
+    <symbol id="i-pencil" viewBox="0 0 24 24"><path d="M4 20l1-5L16 4l4 4L9 19zM14 6l4 4"/></symbol>
+    <symbol id="i-bulb" viewBox="0 0 24 24"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.500 11V16h7v-2A6 6 0 0 0 12 3z"/></symbol>
+    <symbol id="i-docs" viewBox="0 0 24 24"><path d="M3 4h8v16H3zM13 4h8v16h-8zM5.500 8h3M5.500 12h3M15.500 8h3M15.500 12h3"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10" cy="10" r="6"/><path d="M15 15l6 6"/></symbol>
+    <symbol id="i-cursor" viewBox="0 0 24 24"><path d="M5 3l14 8-6 2 4 7-3 1.500-4-7-5 4z"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 5-4 8-8 9-4-1-8-4-8-9V6zM8.500 12l2.500 2.500 4.500-5"/></symbol>
+    <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24"><path d="M5 11h14v10H5zM8 11V8a4 4 0 0 1 8 0v3"/></symbol>
+    <symbol id="i-phone" viewBox="0 0 24 24"><path d="M7 2h10v20H7zM11 18.500h2"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.500 2"/></symbol>
+    <symbol id="i-key" viewBox="0 0 24 24"><circle cx="7.500" cy="12" r="4"/><path d="M11.500 12H21M18 12v3.500M21 12v2.500"/></symbol>
+    <symbol id="i-heart" viewBox="0 0 24 24"><path d="M12 20S4 15 4 9a4.500 4.500 0 0 1 8-2.500A4.500 4.500 0 0 1 20 9c0 6-8 11-8 11z"/></symbol>
+    <symbol id="i-stop" viewBox="0 0 24 24"><path d="M8 3h8l5 5v8l-5 5H8l-5-5V8zM7 12h10"/></symbol>
+    <symbol id="i-family" viewBox="0 0 24 24"><circle cx="8" cy="7" r="3"/><circle cx="17" cy="9" r="2.500"/><path d="M2.500 20c0-4 3-6.500 5.500-6.500s5.500 2.500 5.500 6.500M14.500 20c0-3 2-5 3.500-5s3.500 2 3.500 5"/></symbol>
+    <symbol id="i-hand" viewBox="0 0 24 24"><path d="M8 12V5a1.500 1.500 0 0 1 3 0v6m0-1V4a1.500 1.500 0 0 1 3 0v7m0-5a1.500 1.500 0 0 1 3 0v8c0 4-2 7-6 7s-6-3-6-6l-1-3a1.500 1.500 0 0 1 3-1.500L8 14"/></symbol>
+    <symbol id="i-question" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.500 9.500a2.500 2.500 0 1 1 3.500 2.300c-.7.400-1 1-1 1.700M12 17h.01"/></symbol>
+    <symbol id="i-fridge" viewBox="0 0 24 24"><path d="M6 2h12v20H6zM6 10h12M9 5v2M9 13v3"/></symbol>
+  </defs>
+</svg>
+
+<!-- 1 -->
+<section class="slide">
+  <svg class="ico accent"><use href="#i-chat"/></svg>
+  <div class="big">AI בשפה פשוטה</div>
+  <div class="rule"></div>
+  <div class="sub">שעה, שיחה, ותרגול</div>
+</section>
+
+<!-- 2 -->
+<section class="slide">
+  <svg class="ico accent"><use href="#i-fridge"/></svg>
+  <div class="chat">
+    <div class="bubble user">יש לי במקרר קישואים, ביצים, גבינה לבנה ועגבניות. מה אפשר להכין לארוחת ערב?</div>
+  </div>
+  <div class="shot">צילום מסך של התשובה (או הדגמה חיה)</div>
+</section>
+
+<!-- 3 -->
+<section class="slide">
+  <div class="chat">
+    <div class="bubble user">יש לי במקרר קישואים, ביצים, גבינה לבנה ועגבניות. מה אפשר להכין לארוחת ערב?</div>
+    <div class="bubble user"><b>אין לי תנור.</b></div>
+  </div>
+  <div class="shot">צילום מסך של התשובה</div>
+</section>
+
+<!-- 4 -->
+<section class="slide">
+  <div class="chat">
+    <div class="bubble user">אין לי תנור.</div>
+    <div class="bubble user"><b>זה לשני אנשים, ואחד לא אוכל עגבניות.</b></div>
+  </div>
+  <div class="shot">צילום מסך של התשובה</div>
+</section>
+
+<!-- 5 -->
+<section class="slide">
+  <div class="ico-row">
+    <div class="ico-col"><svg class="ico"><use href="#i-search"/></svg><div class="ico-cap">חיפוש</div></div>
+    <div class="ico-col"><svg class="ico accent"><use href="#i-chat"/></svg><div class="ico-cap">שיחה</div></div>
+  </div>
+  <div class="big">זה לא חיפוש.<br><b>זו שיחה.</b></div>
+</section>
+
+<!-- 6 -->
+<section class="slide">
+  <svg class="ico accent"><use href="#i-cake"/></svg>
+  <div class="big">יום הולדת <span class="blank"></span></div>
+</section>
+
+<!-- 7 -->
+<section class="slide">
+  <div class="ico-row">
+    <svg class="ico"><use href="#i-cake"/></svg>
+    <svg class="ico accent"><use href="#i-next"/></svg>
+    <svg class="ico"><use href="#i-heart"/></svg>
+  </div>
+  <div class="big">הוא ניחש את המילה הבאה.<br><b>שוב ושוב.</b></div>
+</section>
+
+<!-- 8 -->
+<section class="slide">
+  <div class="mid">הוא לא יודע כמו אדם.</div>
+  <div class="big"><b>הוא מצוין בלהישמע נכון.</b></div>
+</section>
+
+<!-- 9 -->
+<section class="slide">
+  <div class="ico-row">
+    <svg class="ico accent"><use href="#i-chat"/></svg>
+    <div class="big"><b>≠</b></div>
+    <svg class="ico g"><use href="#i-check"/></svg>
+  </div>
+  <div class="big">נשמע בטוח, <b>לא תמיד נכון</b></div>
+  <div class="shot">צילום מסך: ספר מומצא, והצ'אט עונה בביטחון</div>
+</section>
+
+<!-- 10 -->
+<section class="slide">
+  <svg class="ico accent"><use href="#i-eye"/></svg>
+  <div class="mid">משהו חשוב?</div>
+  <div class="big"><b>בודקים לפני שסומכים.</b></div>
+</section>
+
+<!-- 11 -->
+<section class="slide">
+  <svg class="ico accent"><use href="#i-letter"/></svg>
+  <div class="big"><b>להסביר</b></div>
+  <div class="chat"><div class="bubble user">מה כתוב במכתב מהבנק?<br>הסבר לי בשפה פשוטה.</div></div>
+</section>
+
+<!-- 12 -->
+<section class="slide">
+  <svg class="ico accent"><use href="#i-pencil"/></svg>
+  <div class="big"><b>לכתוב</b></div>
+  <div class="chat"><div class="bubble user">נסח לי הודעה מנומסת לוועד הבית.</div></div>
+</section>
+
+<!-- 13 -->
+<section class="slide">
+  <svg class="ico accent"><use href="#i-bulb"/></svg>
+  <div class="big"><b>לחשוב יחד</b></div>
+  <div class="chat"><div class="bubble user">עזור לי לתכנן תפריט לשמונה אורחים.</div></div>
+</section>
+
+<!-- 14 -->
+<section class="slide">
+  <svg class="ico accent"><use href="#i-docs"/></svg>
+  <div class="big"><b>לעבוד עם מידע</b></div>
+  <div class="chat"><div class="bubble user">הנה שתי הצעות מחיר. השווה ביניהן.</div></div>
+</section>
+
+<!-- 15 -->
+<section class="slide">
+  <svg class="ico accent"><use href="#i-question"/></svg>
+  <div class="mid">אין לכם מילה למה שאתם מחפשים?</div>
+  <div class="big"><b>תארו אותו.</b></div>
+</section>
+
+<!-- 16 -->
+<section class="slide">
+  <div class="ico-row">
+    <div class="ico-col"><svg class="ico"><use href="#i-chat"/></svg><div class="ico-cap">עונה</div></div>
+    <svg class="ico accent"><use href="#i-next"/></svg>
+    <div class="ico-col"><svg class="ico accent"><use href="#i-hand"/></svg><div class="ico-cap">עושה</div></div>
+  </div>
+  <div class="big">עד עכשיו: הוא עונה.<br>מעכשיו: <b>הוא עושה.</b></div>
+</section>
+
+<!-- 17 -->
+<section class="slide">
+  <div class="chat">
+    <div class="bubble ai"><small>צ'אט</small>"מצאתי שלוש מסעדות."</div>
+    <div class="bubble ai"><small>סוכן</small>"מצאתי, בדקתי מקום ליום חמישי, ואני ממשיך להזמנה."</div>
+  </div>
+</section>
+
+<!-- 18 -->
+<section class="slide">
+  <div class="rows">
+    <div class="row g-row"><span class="dot g"></span><span>"מצא לי מלון ברומא."</span></div>
+    <div class="row o-row"><span class="dot o"></span><span>"מצא והכן הזמנה."</span></div>
+    <div class="row r-row"><span class="dot r"></span><span>"הנה כרטיס האשראי, תזמין."</span></div>
+  </div>
+</section>
+
+<!-- 19 -->
+<section class="slide">
+  <div class="rows">
+    <div class="row g-row"><span class="dot g"></span><span><b>מידע:</b> אפשר לחפש</span></div>
+    <div class="row o-row"><span class="dot o"></span><span><b>פעולה:</b> בודקים</span></div>
+    <div class="row r-row"><span class="dot r"></span><span><b>כסף ופרטים אישיים:</b> אני מאשר</span></div>
+  </div>
+</section>
+
+<!-- 20 -->
+<section class="slide">
+  <svg class="ico accent"><use href="#i-eye"/></svg>
+  <div class="big">ככל שהוא עושה יותר,<br><b>מפקחים יותר.</b></div>
+</section>
+
+<!-- 21 -->
+<section class="slide">
+  <div class="big">אמיתי או AI?</div>
+  <div class="pair">
+    <div class="photo">תמונה א'</div>
+    <div class="photo">תמונה ב'</div>
+  </div>
+</section>
+
+<!-- 22 -->
+<section class="slide">
+  <div class="sub">כלל 1</div>
+  <svg class="ico accent"><use href="#i-x"/></svg>
+  <div class="big">AI יכול לטעות<br><b>ולהישמע בטוח.</b></div>
+</section>
+
+<!-- 23 -->
+<section class="slide">
+  <div class="sub">כלל 2</div>
+  <svg class="ico accent"><use href="#i-lock"/></svg>
+  <div class="big">סיסמאות וכרטיסי אשראי<br><b>לא נכנסים לצ'אט.</b></div>
+</section>
+
+<!-- 24 -->
+<section class="slide">
+  <div class="sub">כלל 3</div>
+  <svg class="ico accent"><use href="#i-phone"/></svg>
+  <div class="big">קול ותמונה<br><b>כבר אינם הוכחה.</b></div>
+</section>
+
+<!-- 25 -->
+<section class="slide">
+  <div class="sub">כלל 4</div>
+  <svg class="ico accent"><use href="#i-clock"/></svg>
+  <div class="big">"מהר", "עכשיו", "אל תספרו":<br><b>עוצרים.</b></div>
+</section>
+
+<!-- 26 -->
+<section class="slide">
+  <svg class="ico accent"><use href="#i-stop"/></svg>
+  <div class="mid">הנכד מתקשר ומבקש כסף?</div>
+  <div class="big"><b>מנתקים ומתקשרים אליו בעצמנו.</b></div>
+</section>
+
+<!-- 27 -->
+<section class="slide">
+  <div class="ico-row">
+    <svg class="ico"><use href="#i-family"/></svg>
+    <svg class="ico accent"><use href="#i-key"/></svg>
+  </div>
+  <div class="big"><b>מילת קוד משפחתית.</b></div>
+  <div class="mid">מילה שרק המשפחה יודעת.</div>
+</section>
+
+<!-- 28 -->
+<section class="slide">
+  <svg class="ico accent"><use href="#i-phone"/></svg>
+  <div class="big"><b>מוציאים טלפונים.</b></div>
+  <div class="mid">נתקעתם? מרימים יד, יבואו לעזור.</div>
+</section>
+
+<!-- 29 -->
+<section class="slide">
+  <div class="sub">שלב 1</div>
+  <svg class="ico accent"><use href="#i-chat"/></svg>
+  <div class="big">בקשו משהו<br><b>שיעזור לכם השבוע.</b></div>
+</section>
+
+<!-- 30 -->
+<section class="slide">
+  <div class="sub">שלב 2</div>
+  <svg class="ico accent"><use href="#i-x"/></svg>
+  <div class="big">תגידו לו<br><b>מה לא מתאים.</b></div>
+</section>
+
+<!-- 31 -->
+<section class="slide">
+  <div class="sub">שלב 3</div>
+  <svg class="ico accent"><use href="#i-pencil"/></svg>
+  <div class="big">תנו לו<br><b>עוד פרט שחסר.</b></div>
+</section>
+
+<!-- 32 -->
+<section class="slide">
+  <div class="big"><b>מה אני רוצה</b><br>+ קצת הקשר<br>+ מה חשוב לי</div>
+</section>
+
+<!-- 33 -->
+<section class="slide">
+  <div class="mid">AI לא יודע הכול.<br>AI לא תמיד צודק.</div>
+  <svg class="ico accent"><use href="#i-heart"/></svg>
+  <div class="big"><b>אבל הוא עוזר מצוין.</b></div>
+</section>
+
+<!-- 34 -->
+<section class="slide">
+  <div class="big">דברו איתו.<br>תקנו אותו.<br>בקשו שיסביר.<br><b>אל תאמינו אוטומטית.</b></div>
+</section>
+
+<!-- 35 -->
+<section class="slide">
+  <svg class="ico accent"><use href="#i-eye"/></svg>
+  <div class="mid">לא צריך להבין טכנולוגיה.<br>צריך להבין</div>
+  <div class="big"><b>מה ביקשתם, מה קיבלתם,<br>ומתי לבדוק.</b></div>
+</section>
+
+<div class="hint">חצים או רווח לניווט · F למסך מלא</div>
+
+<script>
+(function () {
+  var slides = Array.prototype.slice.call(document.querySelectorAll('.slide'));
+  var cur = 0;
+
+  slides.forEach(function (s, i) {
+    var n = document.createElement('div');
+    n.className = 'num';
+    n.dir = 'ltr';
+    n.textContent = (i + 1) + ' / ' + slides.length;
+    s.appendChild(n);
+  });
+
+  function show(i) {
+    cur = Math.max(0, Math.min(slides.length - 1, i));
+    slides.forEach(function (s, k) { s.classList.toggle('active', k === cur); });
+    try { history.replaceState(null, '', '#' + (cur + 1)); } catch (e) {}
+  }
+  function next() { show(cur + 1); }
+  function prev() { show(cur - 1); }
+
+  var start = parseInt((location.hash || '').replace('#', ''), 10);
+  show(isNaN(start) ? 0 : start - 1);
+
+  // right-to-left deck: left arrow moves forward, right arrow moves back
+  document.addEventListener('keydown', function (e) {
+    switch (e.key) {
+      case 'ArrowLeft': case 'ArrowDown': case 'PageDown': case ' ': case 'Enter': e.preventDefault(); next(); break;
+      case 'ArrowRight': case 'ArrowUp': case 'PageUp': case 'Backspace': e.preventDefault(); prev(); break;
+      case 'Home': show(0); break;
+      case 'End': show(slides.length - 1); break;
+      case 'f': case 'F':
+        if (document.fullscreenElement) document.exitFullscreen();
+        else document.documentElement.requestFullscreen && document.documentElement.requestFullscreen();
+        break;
+    }
+  });
+
+  // click: right third goes back, anywhere else goes forward
+  document.addEventListener('click', function (e) {
+    if (e.clientX > window.innerWidth * 0.67) prev(); else next();
+  });
+
+  // swipe
+  var sx = null;
+  document.addEventListener('touchstart', function (e) { sx = e.touches[0].clientX; }, { passive: true });
+  document.addEventListener('touchend', function (e) {
+    if (sx === null) return;
+    var dx = e.changedTouches[0].clientX - sx; sx = null;
+    if (Math.abs(dx) < 40) return;
+    if (dx < 0) next(); else prev();
+  });
+
+  // show the nav hint briefly on load
+  document.body.classList.add('show-hint');
+  setTimeout(function () { document.body.classList.remove('show-hint'); }, 4000);
+})();
+</script>
+</body>
+</html>
